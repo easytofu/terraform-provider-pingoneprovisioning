@@ -1,0 +1,76 @@
+version: "2"
+run:
+  modules-download-mode: vendor
+
+linters:
+  default: none
+
+  enable:
+    - copyloopvar
+    - durationcheck
+    - errcheck
+    - errname
+    - errorlint
+    # - forcetypeassert TODO: Re-enable when we can fix the issues
+    - godot
+    - govet
+    - ineffassign
+    - makezero
+    - misspell
+    - modernize
+    - nilerr
+    - predeclared
+    - staticcheck
+    - unconvert
+    - unparam
+    - unused
+    - usetesting
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+    rules:
+      - path: _test\.go
+        linters:
+          - unparam
+        text: always receives
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofmt
+    - gofumpt
+    - goimports
+
+  settings:
+    gofmt:
+      simplify: true
+      rewrite-rules:
+        - pattern: interface{}
+          replacement: any
+        - pattern: a[b:len(a)]
+          replacement: a[b:]
+    gofumpt:
+      module-path: github.com/integrations/terraform-provider-github
+      extra-rules: true
+    goimports:
+      local-prefixes:
+        - github.com/integrations/terraform-provider-github
+
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

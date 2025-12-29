@@ -1,0 +1,146 @@
+package github
+
+import (
+	"context"
+	"errors"
+	"log"
+	"net/http"
+	"net/url"
+
+	"github.com/google/go-github/v67/github"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+)
+
+func resourceGithubActionsEnvironmentVariable() *schema.Resource {
+	return &schema.Resource{
+		Create: resourceGithubActionsEnvironmentVariableCreateOrUpdate,
+		Read:   resourceGithubActionsEnvironmentVariableRead,
+		Update: resourceGithubActionsEnvironmentVariableCreateOrUpdate,
+		Delete: resourceGithubActionsEnvironmentVariableDelete,
+		Importer: &schema.ResourceImporter{
+			StateContext: schema.ImportStatePassthroughContext,
+		},
+
+		Schema: map[string]*schema.Schema{
+			"repository": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "Name of the repository.",
+			},
+			"environment": {
+				Type:        schema.TypeString,
+				Required:    true,
+				ForceNew:    true,
+				Description: "Name of the environment.",
+			},
+			"variable_name": {
+				Type:             schema.TypeString,
+				Required:         true,
+				ForceNew:         true,
+				Description:      "Name of the variable.",
+				ValidateDiagFunc: validateSecretNameFunc,
+			},
+			"value": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "Value of the variable.",
+			},
+			"created_at": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "Date of 'actions_variable' creation.",
+			},
+			"updated_at": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "Date of 'actions_variable' update.",
+			},
+		},
+	}
+}
+
+func resourceGithubActionsEnvironmentVariableCreateOrUpdate(d *schema.ResourceData, meta any) error {
+	client := meta.(*Owner).v3client
+	owner := meta.(*Owner).name
+	ctx := context.Background()
+
+	repoName := d.Get("repository").(string)
+	envName := d.Get("environment").(string)
+	escapedEnvName := url.PathEscape(envName)
+	name := d.Get("variable_name").(string)
+
+	variable := &github.ActionsVariable{
+		Name:  name,
+		Value: d.Get("value").(string),
+	}
+
+	// Try to create the variable first
+	_, err := client.Actions.CreateEnvVariable(ctx, owner, repoName, escapedEnvName, variable)
+	if err != nil {
+		var ghErr *github.ErrorResponse
+		if errors.As(err, &ghErr) && ghErr.Response.StatusCode == http.StatusConflict {
+			// Variable already exists, try to update instead
+			// If it fails here, we want to return the error otherwise continue
+			_, err = client.Actions.UpdateEnvVariable(ctx, owner, repoName, escapedEnvName, variable)
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+
+	d.SetId(buildThreePartID(repoName, envName, name))
+	return resourceGithubActionsEnvironmentVariableRead(d, meta)
+}
+
+func resourceGithubActionsEnvironmentVariableRead(d *schema.ResourceData, meta any) error {
+	client := meta.(*Owner).v3client
+	owner := meta.(*Owner).name
+	ctx := context.Background()
+
+	repoName, envName, name, err := parseThreePartID(d.Id(), "repository", "environment", "variable_name")
+	if err != nil {
+		return err
+	}
+	escapedEnvName := url.PathEscape(envName)
+
+	variable, _, err := client.Actions.GetEnvVariable(ctx, owner, repoName, escapedEnvName, name)
+	if err != nil {
+		var ghErr *github.ErrorResponse
+		if errors.As(err, &ghErr) {
+			if ghErr.Response.StatusCode == http.StatusNotFound {
+				log.Printf("[INFO] Removing actions variable %s from state because it no longer exists in GitHub",
+					d.Id())
+				d.SetId("")
+				return nil
+			}
+		}
+		return err
+	}
+
+	_ = d.Set("repository", repoName)
+	_ = d.Set("environment", envName)
+	_ = d.Set("variable_name", name)
+	_ = d.Set("value", variable.Value)
+	_ = d.Set("created_at", variable.CreatedAt.String())
+	_ = d.Set("updated_at", variable.UpdatedAt.String())
+
+	return nil
+}
+
+func resourceGithubActionsEnvironmentVariableDelete(d *schema.ResourceData, meta any) error {
+	client := meta.(*Owner).v3client
+	owner := meta.(*Owner).name
+	ctx := context.WithValue(context.Background(), ctxId, d.Id())
+
+	repoName, envName, name, err := parseThreePartID(d.Id(), "repository", "environment", "variable_name")
+	if err != nil {
+		return err
+	}
+	escapedEnvName := url.PathEscape(envName)
+
+	_, err = client.Actions.DeleteEnvVariable(ctx, owner, repoName, escapedEnvName, name)
+
+	return err
+}

@@ -1,0 +1,773 @@
+package github
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"regexp"
+	"strconv"
+
+	"github.com/google/go-github/v67/github"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+)
+
+func resourceGithubRepositoryRuleset() *schema.Resource {
+	return &schema.Resource{
+		Create: resourceGithubRepositoryRulesetCreate,
+		Read:   resourceGithubRepositoryRulesetRead,
+		Update: resourceGithubRepositoryRulesetUpdate,
+		Delete: resourceGithubRepositoryRulesetDelete,
+		Importer: &schema.ResourceImporter{
+			State: resourceGithubRepositoryRulesetImport,
+		},
+
+		SchemaVersion: 1,
+
+		Schema: map[string]*schema.Schema{
+			"name": {
+				Type:         schema.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringLenBetween(1, 100),
+				Description:  "The name of the ruleset.",
+			},
+			"target": {
+				Type:         schema.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringInSlice([]string{"branch", "push", "tag"}, false),
+				Description:  "Possible values are `branch`, `push` and `tag`.",
+			},
+			"repository": {
+				Type:             schema.TypeString,
+				Required:         true,
+				ValidateDiagFunc: toDiagFunc(validation.StringMatch(regexp.MustCompile(`^[-a-zA-Z0-9_.]{1,100}$`), "must include only alphanumeric characters, underscores or hyphens and consist of 100 characters or less"), "name"),
+				Description:      "Name of the repository to apply ruleset to.",
+			},
+			"enforcement": {
+				Type:         schema.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringInSlice([]string{"disabled", "active", "evaluate"}, false),
+				Description:  "Possible values for Enforcement are `disabled`, `active`, `evaluate`. Note: `evaluate` is currently only supported for owners of type `organization`.",
+			},
+			"bypass_actors": {
+				Type:             schema.TypeList,
+				Optional:         true,
+				DiffSuppressFunc: bypassActorsDiffSuppressFunc,
+				Description:      "The actors that can bypass the rules in this ruleset.",
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"actor_id": {
+							Type:        schema.TypeInt,
+							Optional:    true,
+							Default:     nil,
+							Description: "The ID of the actor that can bypass a ruleset. When `actor_type` is `OrganizationAdmin`, this should be set to `1`. Some resources such as DeployKey do not have an ID and this should be omitted.",
+						},
+						"actor_type": {
+							Type:         schema.TypeString,
+							Required:     true,
+							ValidateFunc: validation.StringInSlice([]string{"RepositoryRole", "Team", "Integration", "OrganizationAdmin", "DeployKey"}, false),
+							Description:  "The type of actor that can bypass a ruleset. See https://docs.github.com/en/rest/repos/rules for more information.",
+						},
+						"bypass_mode": {
+							Type:         schema.TypeString,
+							Required:     true,
+							ValidateFunc: validation.StringInSlice([]string{"always", "pull_request", "exempt"}, false),
+							Description:  "When the specified actor can bypass the ruleset. pull_request means that an actor can only bypass rules on pull requests. Can be one of: `always`, `pull_request`, `exempt`.",
+						},
+					},
+				},
+			},
+			"node_id": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "GraphQL global node id for use with v4 API.",
+			},
+			"ruleset_id": {
+				Type:        schema.TypeInt,
+				Computed:    true,
+				Description: "GitHub ID for the ruleset.",
+			},
+			"conditions": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				MaxItems:    1,
+				Description: "Parameters for a repository ruleset ref name condition.",
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"ref_name": {
+							Type:     schema.TypeList,
+							Required: true,
+							MaxItems: 1,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"include": {
+										Type:        schema.TypeList,
+										Required:    true,
+										Description: "Array of ref names or patterns to include. One of these patterns must match for the condition to pass. Also accepts `~DEFAULT_BRANCH` to include the default branch or `~ALL` to include all branches.",
+										Elem: &schema.Schema{
+											Type: schema.TypeString,
+										},
+									},
+									"exclude": {
+										Type:        schema.TypeList,
+										Required:    true,
+										Description: "Array of ref names or patterns to exclude. The condition will not pass if any of these patterns match.",
+										Elem: &schema.Schema{
+											Type: schema.TypeString,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			"rules": {
+				Type:        schema.TypeList,
+				Required:    true,
+				MaxItems:    1,
+				Description: "Rules within the ruleset.",
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"creation": {
+							Type:        schema.TypeBool,
+							Optional:    true,
+							Description: "Only allow users with bypass permission to create matching refs.",
+						},
+						"update": {
+							Type:        schema.TypeBool,
+							Optional:    true,
+							Description: "Only allow users with bypass permission to update matching refs.",
+						},
+						"update_allows_fetch_and_merge": {
+							Type:         schema.TypeBool,
+							Optional:     true,
+							Default:      false,
+							RequiredWith: []string{"rules.0.update"},
+							Description:  "Branch can pull changes from its upstream repository. This is only applicable to forked repositories. Requires `update` to be set to `true`.",
+						},
+						"deletion": {
+							Type:        schema.TypeBool,
+							Optional:    true,
+							Description: "Only allow users with bypass permissions to delete matching refs.",
+						},
+						"required_linear_history": {
+							Type:        schema.TypeBool,
+							Optional:    true,
+							Description: "Prevent merge commits from being pushed to matching branches.",
+						},
+						"required_deployments": {
+							Type:        schema.TypeList,
+							MaxItems:    1,
+							Optional:    true,
+							Description: "Choose which environments must be successfully deployed to before branches can be merged into a branch that matches this rule.",
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"required_deployment_environments": {
+										Type:        schema.TypeList,
+										Required:    true,
+										Description: "The environments that must be successfully deployed to before branches can be merged.",
+										Elem: &schema.Schema{
+											Type: schema.TypeString,
+										},
+									},
+								},
+							},
+						},
+						"required_signatures": {
+							Type:        schema.TypeBool,
+							Optional:    true,
+							Description: "Commits pushed to matching branches must have verified signatures.",
+						},
+						"pull_request": {
+							Type:        schema.TypeList,
+							MaxItems:    1,
+							Optional:    true,
+							Description: "Require all commits be made to a non-target branch and submitted via a pull request before they can be merged.",
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"dismiss_stale_reviews_on_push": {
+										Type:        schema.TypeBool,
+										Optional:    true,
+										Default:     false,
+										Description: "New, reviewable commits pushed will dismiss previous pull request review approvals. Defaults to `false`.",
+									},
+									"require_code_owner_review": {
+										Type:        schema.TypeBool,
+										Optional:    true,
+										Default:     false,
+										Description: "Require an approving review in pull requests that modify files that have a designated code owner. Defaults to `false`.",
+									},
+									"require_last_push_approval": {
+										Type:        schema.TypeBool,
+										Optional:    true,
+										Default:     false,
+										Description: "Whether the most recent reviewable push must be approved by someone other than the person who pushed it. Defaults to `false`.",
+									},
+									"required_approving_review_count": {
+										Type:        schema.TypeInt,
+										Optional:    true,
+										Default:     0,
+										Description: "The number of approving reviews that are required before a pull request can be merged. Defaults to `0`.",
+									},
+									"required_review_thread_resolution": {
+										Type:        schema.TypeBool,
+										Optional:    true,
+										Default:     false,
+										Description: "All conversations on code must be resolved before a pull request can be merged. Defaults to `false`.",
+									},
+								},
+							},
+						},
+						"required_status_checks": {
+							Type:        schema.TypeList,
+							MaxItems:    1,
+							Optional:    true,
+							Description: "Choose which status checks must pass before branches can be merged into a branch that matches this rule. When enabled, commits must first be pushed to another branch, then merged or pushed directly to a branch that matches this rule after status checks have passed.",
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"required_check": {
+										Type:        schema.TypeSet,
+										MinItems:    1,
+										Required:    true,
+										Description: "Status checks that are required. Several can be defined.",
+										Elem: &schema.Resource{
+											Schema: map[string]*schema.Schema{
+												"context": {
+													Type:        schema.TypeString,
+													Required:    true,
+													Description: "The status check context name that must be present on the commit.",
+												},
+												"integration_id": {
+													Type:        schema.TypeInt,
+													Optional:    true,
+													Default:     0,
+													Description: "The optional integration ID that this status check must originate from.",
+												},
+											},
+										},
+									},
+									"strict_required_status_checks_policy": {
+										Type:        schema.TypeBool,
+										Optional:    true,
+										Description: "Whether pull requests targeting a matching branch must be tested with the latest code. This setting will not take effect unless at least one status check is enabled. Defaults to `false`.",
+									},
+									"do_not_enforce_on_create": {
+										Type:        schema.TypeBool,
+										Optional:    true,
+										Description: "Allow repositories and branches to be created if a check would otherwise prohibit it.",
+										Default:     false,
+									},
+								},
+							},
+						},
+						"merge_queue": {
+							Type:        schema.TypeList,
+							MaxItems:    1,
+							Optional:    true,
+							Description: "Merges must be performed via a merge queue.",
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"check_response_timeout_minutes": {
+										Type:             schema.TypeInt,
+										Optional:         true,
+										Default:          60,
+										ValidateDiagFunc: toDiagFunc(validation.IntBetween(0, 360), "check_response_timeout_minutes"),
+										Description:      "Maximum time for a required status check to report a conclusion. After this much time has elapsed, checks that have not reported a conclusion will be assumed to have failed. Defaults to `60`.",
+									},
+									"grouping_strategy": {
+										Type:             schema.TypeString,
+										Optional:         true,
+										Default:          "ALLGREEN",
+										ValidateDiagFunc: toDiagFunc(validation.StringInSlice([]string{"ALLGREEN", "HEADGREEN"}, false), "grouping_strategy"),
+										Description:      "When set to ALLGREEN, the merge commit created by merge queue for each PR in the group must pass all required checks to merge. When set to HEADGREEN, only the commit at the head of the merge group, i.e. the commit containing changes from all of the PRs in the group, must pass its required checks to merge. Can be one of: ALLGREEN, HEADGREEN. Defaults to `ALLGREEN`.",
+									},
+									"max_entries_to_build": {
+										Type:             schema.TypeInt,
+										Optional:         true,
+										Default:          5,
+										ValidateDiagFunc: toDiagFunc(validation.IntBetween(0, 100), "max_entries_to_merge"),
+										Description:      "Limit the number of queued pull requests requesting checks and workflow runs at the same time. Defaults to `5`.",
+									},
+									"max_entries_to_merge": {
+										Type:             schema.TypeInt,
+										Optional:         true,
+										Default:          5,
+										ValidateDiagFunc: toDiagFunc(validation.IntBetween(0, 100), "max_entries_to_merge"),
+										Description:      "The maximum number of PRs that will be merged together in a group. Defaults to `5`.",
+									},
+									"merge_method": {
+										Type:             schema.TypeString,
+										Optional:         true,
+										Default:          "MERGE",
+										ValidateDiagFunc: toDiagFunc(validation.StringInSlice([]string{"MERGE", "SQUASH", "REBASE"}, false), "merge_method"),
+										Description:      "Method to use when merging changes from queued pull requests. Can be one of: MERGE, SQUASH, REBASE. Defaults to `MERGE`.",
+									},
+									"min_entries_to_merge": {
+										Type:             schema.TypeInt,
+										Optional:         true,
+										Default:          1,
+										ValidateDiagFunc: toDiagFunc(validation.IntBetween(0, 100), "min_entries_to_merge"),
+										Description:      "The minimum number of PRs that will be merged together in a group. Defaults to `1`.",
+									},
+									"min_entries_to_merge_wait_minutes": {
+										Type:             schema.TypeInt,
+										Optional:         true,
+										Default:          5,
+										ValidateDiagFunc: toDiagFunc(validation.IntBetween(0, 360), "min_entries_to_merge_wait_minutes"),
+										Description:      "The time merge queue should wait after the first PR is added to the queue for the minimum group size to be met. After this time has elapsed, the minimum group size will be ignored and a smaller group will be merged. Defaults to `5`.",
+									},
+								},
+							},
+						},
+						"non_fast_forward": {
+							Type:        schema.TypeBool,
+							Optional:    true,
+							Description: "Prevent users with push access from force pushing to branches.",
+						},
+						"commit_message_pattern": {
+							Type:        schema.TypeList,
+							MaxItems:    1,
+							Optional:    true,
+							Description: "Parameters to be used for the commit_message_pattern rule. This rule only applies to repositories within an enterprise, it cannot be applied to repositories owned by individuals or regular organizations.",
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"name": {
+										Type:        schema.TypeString,
+										Optional:    true,
+										Description: "How this rule will appear to users.",
+									},
+									"negate": {
+										Type:        schema.TypeBool,
+										Optional:    true,
+										Description: "If true, the rule will fail if the pattern matches.",
+									},
+									"operator": {
+										Type:        schema.TypeString,
+										Required:    true,
+										Description: "The operator to use for matching. Can be one of: `starts_with`, `ends_with`, `contains`, `regex`.",
+									},
+									"pattern": {
+										Type:        schema.TypeString,
+										Required:    true,
+										Description: "The pattern to match with.",
+									},
+								},
+							},
+						},
+						"commit_author_email_pattern": {
+							Type:        schema.TypeList,
+							MaxItems:    1,
+							Optional:    true,
+							Description: "Parameters to be used for the commit_author_email_pattern rule. This rule only applies to repositories within an enterprise, it cannot be applied to repositories owned by individuals or regular organizations.",
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"name": {
+										Type:        schema.TypeString,
+										Optional:    true,
+										Description: "How this rule will appear to users.",
+									},
+									"negate": {
+										Type:        schema.TypeBool,
+										Optional:    true,
+										Description: "If true, the rule will fail if the pattern matches.",
+									},
+									"operator": {
+										Type:        schema.TypeString,
+										Required:    true,
+										Description: "The operator to use for matching. Can be one of: `starts_with`, `ends_with`, `contains`, `regex`.",
+									},
+									"pattern": {
+										Type:        schema.TypeString,
+										Required:    true,
+										Description: "The pattern to match with.",
+									},
+								},
+							},
+						},
+						"committer_email_pattern": {
+							Type:        schema.TypeList,
+							MaxItems:    1,
+							Optional:    true,
+							Description: "Parameters to be used for the committer_email_pattern rule. This rule only applies to repositories within an enterprise, it cannot be applied to repositories owned by individuals or regular organizations.",
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"name": {
+										Type:        schema.TypeString,
+										Optional:    true,
+										Description: "How this rule will appear to users.",
+									},
+									"negate": {
+										Type:        schema.TypeBool,
+										Optional:    true,
+										Description: "If true, the rule will fail if the pattern matches.",
+									},
+									"operator": {
+										Type:        schema.TypeString,
+										Required:    true,
+										Description: "The operator to use for matching. Can be one of: `starts_with`, `ends_with`, `contains`, `regex`.",
+									},
+									"pattern": {
+										Type:        schema.TypeString,
+										Required:    true,
+										Description: "The pattern to match with.",
+									},
+								},
+							},
+						},
+						"branch_name_pattern": {
+							Type:          schema.TypeList,
+							MaxItems:      1,
+							Optional:      true,
+							ConflictsWith: []string{"rules.0.tag_name_pattern"},
+							Description:   "Parameters to be used for the branch_name_pattern rule. This rule only applies to repositories within an enterprise, it cannot be applied to repositories owned by individuals or regular organizations. Conflicts with `tag_name_pattern` as it only applies to rulesets with target `branch`.",
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"name": {
+										Type:        schema.TypeString,
+										Optional:    true,
+										Description: "How this rule will appear to users.",
+									},
+									"negate": {
+										Type:        schema.TypeBool,
+										Optional:    true,
+										Description: "If true, the rule will fail if the pattern matches.",
+									},
+									"operator": {
+										Type:        schema.TypeString,
+										Required:    true,
+										Description: "The operator to use for matching. Can be one of: `starts_with`, `ends_with`, `contains`, `regex`.",
+									},
+									"pattern": {
+										Type:        schema.TypeString,
+										Required:    true,
+										Description: "The pattern to match with.",
+									},
+								},
+							},
+						},
+						"tag_name_pattern": {
+							Type:          schema.TypeList,
+							MaxItems:      1,
+							Optional:      true,
+							ConflictsWith: []string{"rules.0.branch_name_pattern"},
+							Description:   "Parameters to be used for the tag_name_pattern rule. This rule only applies to repositories within an enterprise, it cannot be applied to repositories owned by individuals or regular organizations. Conflicts with `branch_name_pattern` as it only applies to rulesets with target `tag`.",
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"name": {
+										Type:        schema.TypeString,
+										Optional:    true,
+										Description: "How this rule will appear to users.",
+									},
+									"negate": {
+										Type:        schema.TypeBool,
+										Optional:    true,
+										Description: "If true, the rule will fail if the pattern matches.",
+									},
+									"operator": {
+										Type:        schema.TypeString,
+										Required:    true,
+										Description: "The operator to use for matching. Can be one of: `starts_with`, `ends_with`, `contains`, `regex`.",
+									},
+									"pattern": {
+										Type:        schema.TypeString,
+										Required:    true,
+										Description: "The pattern to match with.",
+									},
+								},
+							},
+						},
+						"required_code_scanning": {
+							Type:        schema.TypeList,
+							MaxItems:    1,
+							Optional:    true,
+							Description: "Choose which tools must provide code scanning results before the reference is updated. When configured, code scanning must be enabled and have results for both the commit and the reference being updated.",
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"required_code_scanning_tool": {
+										Type:        schema.TypeSet,
+										MinItems:    1,
+										Required:    true,
+										Description: "Tools that must provide code scanning results for this rule to pass.",
+										Elem: &schema.Resource{
+											Schema: map[string]*schema.Schema{
+												"alerts_threshold": {
+													Type:        schema.TypeString,
+													Required:    true,
+													Description: "The severity level at which code scanning results that raise alerts block a reference update. Can be one of: `none`, `errors`, `errors_and_warnings`, `all`.",
+												},
+												"security_alerts_threshold": {
+													Type:        schema.TypeString,
+													Required:    true,
+													Description: "The severity level at which code scanning results that raise security alerts block a reference update. Can be one of: `none`, `critical`, `high_or_higher`, `medium_or_higher`, `all`.",
+												},
+												"tool": {
+													Type:        schema.TypeString,
+													Required:    true,
+													Description: "The name of a code scanning tool",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						"file_path_restriction": {
+							Type:        schema.TypeList,
+							Optional:    true,
+							MaxItems:    1,
+							Description: "Prevent commits that include changes in specified file paths from being pushed to the commit graph.",
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"restricted_file_paths": {
+										Type:        schema.TypeList,
+										MinItems:    1,
+										Required:    true,
+										Description: "The file paths that are restricted from being pushed to the commit graph.",
+										Elem: &schema.Schema{
+											Type: schema.TypeString,
+										},
+									},
+								},
+							},
+						},
+						"max_file_size": {
+							Type:        schema.TypeList,
+							Optional:    true,
+							MaxItems:    1,
+							Description: "Prevent pushes based on file size.",
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"max_file_size": {
+										Type:             schema.TypeInt,
+										Required:         true,
+										Description:      "The maximum allowed size of a file in megabytes (MB). Valid range is 1-100 MB.",
+										ValidateDiagFunc: toDiagFunc(validation.IntBetween(1, 100), "max_file_size"),
+									},
+								},
+							},
+						},
+						"max_file_path_length": {
+							Type:        schema.TypeList,
+							Optional:    true,
+							MaxItems:    1,
+							Description: "Prevent pushes based on file path length.",
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"max_file_path_length": {
+										Type:        schema.TypeInt,
+										Required:    true,
+										Description: "The maximum allowed length of a file path.",
+									},
+								},
+							},
+						},
+						"file_extension_restriction": {
+							Type:        schema.TypeList,
+							Optional:    true,
+							MaxItems:    1,
+							Description: "Prevent pushes based on file extensions.",
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"restricted_file_extensions": {
+										Type:        schema.TypeSet,
+										MinItems:    1,
+										Required:    true,
+										Description: "A list of file extensions.",
+										Elem: &schema.Schema{
+											Type: schema.TypeString,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			"etag": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+		},
+	}
+}
+
+func resourceGithubRepositoryRulesetCreate(d *schema.ResourceData, meta any) error {
+	client := meta.(*Owner).v3client
+
+	rulesetReq := resourceGithubRulesetObject(d, "")
+
+	owner := meta.(*Owner).name
+
+	repoName := d.Get("repository").(string)
+	ctx := context.Background()
+
+	// Check if repository is archived - cannot create rulesets on archived repos (attempts PUT on read-only resource)
+	repo, _, err := client.Repositories.Get(ctx, owner, repoName)
+	if err != nil {
+		return err
+	}
+	if repo.GetArchived() {
+		return fmt.Errorf("cannot create ruleset on archived repository %s/%s", owner, repoName)
+	}
+
+	var ruleset *github.Ruleset
+
+	ruleset, _, err = client.Repositories.CreateRuleset(ctx, owner, repoName, rulesetReq)
+	if err != nil {
+		return err
+	}
+	d.SetId(strconv.FormatInt(*ruleset.ID, 10))
+
+	return resourceGithubRepositoryRulesetRead(d, meta)
+}
+
+func resourceGithubRepositoryRulesetRead(d *schema.ResourceData, meta any) error {
+	client := meta.(*Owner).v3client
+
+	owner := meta.(*Owner).name
+
+	repoName := d.Get("repository").(string)
+	rulesetID, err := strconv.ParseInt(d.Id(), 10, 64)
+	if err != nil {
+		return unconvertibleIdErr(d.Id(), err)
+	}
+
+	ctx := context.WithValue(context.Background(), ctxId, rulesetID)
+	if !d.IsNewResource() {
+		ctx = context.WithValue(ctx, ctxEtag, d.Get("etag").(string))
+	}
+
+	var ruleset *github.Ruleset
+	var resp *github.Response
+
+	ruleset, resp, err = client.Repositories.GetRuleset(ctx, owner, repoName, rulesetID, false)
+	if err != nil {
+		var ghErr *github.ErrorResponse
+		if errors.As(err, &ghErr) {
+			if ghErr.Response.StatusCode == http.StatusNotModified {
+				return nil
+			}
+			if ghErr.Response.StatusCode == http.StatusNotFound {
+				log.Printf("[INFO] Removing ruleset %s/%s: %d from state because it no longer exists in GitHub",
+					owner, repoName, rulesetID)
+				d.SetId("")
+				return nil
+			}
+		}
+		return err
+	}
+
+	if ruleset == nil {
+		log.Printf("[INFO] Removing ruleset %s/%s: %d from state because it no longer exists in GitHub (empty response)",
+			owner, repoName, rulesetID)
+		d.SetId("")
+		return nil
+	}
+
+	_ = d.Set("etag", resp.Header.Get("ETag"))
+	_ = d.Set("name", ruleset.Name)
+	_ = d.Set("target", ruleset.GetTarget())
+	_ = d.Set("enforcement", ruleset.Enforcement)
+	_ = d.Set("bypass_actors", flattenBypassActors(ruleset.BypassActors))
+	_ = d.Set("conditions", flattenConditions(ruleset.GetConditions(), false))
+	_ = d.Set("rules", flattenRules(ruleset.Rules, false))
+	_ = d.Set("node_id", ruleset.GetNodeID())
+	_ = d.Set("ruleset_id", ruleset.ID)
+
+	return nil
+}
+
+func resourceGithubRepositoryRulesetUpdate(d *schema.ResourceData, meta any) error {
+	client := meta.(*Owner).v3client
+
+	rulesetReq := resourceGithubRulesetObject(d, "")
+
+	owner := meta.(*Owner).name
+
+	repoName := d.Get("repository").(string)
+	rulesetID, err := strconv.ParseInt(d.Id(), 10, 64)
+	if err != nil {
+		return unconvertibleIdErr(d.Id(), err)
+	}
+
+	ctx := context.WithValue(context.Background(), ctxId, rulesetID)
+
+	// Check if repository is archived - skip update if it is
+	repo, _, err := client.Repositories.Get(ctx, owner, repoName)
+	if err != nil {
+		return err
+	}
+	if repo.GetArchived() {
+		log.Printf("[INFO] Repository %s/%s is archived, skipping ruleset update", owner, repoName)
+		return nil
+	}
+
+	var ruleset *github.Ruleset
+	// Use UpdateRulesetNoBypassActor here instead of UpdateRuleset *if* bypass_actors has changed.
+	// UpdateRuleset uses `omitempty` on BypassActors, causing empty arrays to be omitted from the JSON.
+	// UpdateRulesetNoBypassActor always includes the field so that bypass actors can actually be removed.
+	// See: https://github.com/google/go-github/blob/b6248e6f6aec019e75ba2c8e189bfe89f36b7d01/github/repos_rules.go#L196
+	if d.HasChange("bypass_actors") {
+		ruleset, _, err = client.Repositories.UpdateRulesetNoBypassActor(ctx, owner, repoName, rulesetID, rulesetReq)
+	} else {
+		ruleset, _, err = client.Repositories.UpdateRuleset(ctx, owner, repoName, rulesetID, rulesetReq)
+	}
+	if err != nil {
+		return err
+	}
+	d.SetId(strconv.FormatInt(*ruleset.ID, 10))
+
+	return resourceGithubRepositoryRulesetRead(d, meta)
+}
+
+func resourceGithubRepositoryRulesetDelete(d *schema.ResourceData, meta any) error {
+	client := meta.(*Owner).v3client
+	owner := meta.(*Owner).name
+
+	repoName := d.Get("repository").(string)
+	rulesetID, err := strconv.ParseInt(d.Id(), 10, 64)
+	if err != nil {
+		return unconvertibleIdErr(d.Id(), err)
+	}
+	ctx := context.WithValue(context.Background(), ctxId, rulesetID)
+
+	log.Printf("[DEBUG] Deleting repository ruleset: %s/%s: %d", owner, repoName, rulesetID)
+	_, err = client.Repositories.DeleteRuleset(ctx, owner, repoName, rulesetID)
+	return handleArchivedRepoDelete(err, "repository ruleset", fmt.Sprintf("%d", rulesetID), owner, repoName)
+}
+
+func resourceGithubRepositoryRulesetImport(d *schema.ResourceData, meta any) ([]*schema.ResourceData, error) {
+	repoName, rulesetIDStr, err := parseTwoPartID(d.Id(), "repository", "ruleset")
+	if err != nil {
+		return []*schema.ResourceData{d}, err
+	}
+
+	rulesetID, err := strconv.ParseInt(rulesetIDStr, 10, 64)
+	if err != nil {
+		return []*schema.ResourceData{d}, unconvertibleIdErr(rulesetIDStr, err)
+	}
+	if rulesetID == 0 {
+		return []*schema.ResourceData{d}, fmt.Errorf("`ruleset_id` must be present")
+	}
+	log.Printf("[DEBUG] Importing repository ruleset with ID: %d, for repository: %s", rulesetID, repoName)
+
+	client := meta.(*Owner).v3client
+	owner := meta.(*Owner).name
+	ctx := context.Background()
+	repository, _, err := client.Repositories.Get(ctx, owner, repoName)
+	if repository == nil || err != nil {
+		return []*schema.ResourceData{d}, err
+	}
+	_ = d.Set("repository", *repository.Name)
+
+	ruleset, _, err := client.Repositories.GetRuleset(ctx, owner, *repository.Name, rulesetID, false)
+	if ruleset == nil || err != nil {
+		return []*schema.ResourceData{d}, err
+	}
+	d.SetId(strconv.FormatInt(ruleset.GetID(), 10))
+
+	return []*schema.ResourceData{d}, nil
+}
