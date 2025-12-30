@@ -1,3 +1,4 @@
+# /.goreleaser.yml
 # Visit https://goreleaser.com for documentation on how to customize this
 # behavior.
 version: 2
@@ -75,12 +76,13 @@ signs:
   # Cosign: Keyless signing of the checksum file (Optional / Security best practice)
   - id: cosign
     cmd: cosign
-    signature: "${artifact}.sigstore.json"
+    signature: "${artifact}.sig"
     certificate: "${artifact}.pem"
     args:
       - sign-blob
       - --yes
-      - --bundle=${signature}
+      - --output-signature=${signature}
+      - --output-certificate=${certificate}
       - "${artifact}"
     artifacts: checksum
 
