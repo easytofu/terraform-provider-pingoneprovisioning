@@ -39,19 +39,18 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      # Runs golangci-lint using the config in your .golangci.yml
-      # FIX: Use v6 action and specify a recent linter version compatible with your config
+      # Ensures go.mod/go.sum are clean before we start
+      - name: Check Go Module Tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      # Runs the linter (using the updated .golangci.yml)
       - name: Run Linters
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.64
           args: --timeout=5m
-
-      # Ensures that go.mod and go.sum are up to date and clean
-      - name: Check Go Module Tidy
-        run: |
-          go mod tidy
-          git diff --exit-code go.mod go.sum
 
       # Runs unit tests with race detection
       - name: Run Tests
