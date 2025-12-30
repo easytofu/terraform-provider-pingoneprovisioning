@@ -1,4 +1,5 @@
-name: Continuous Integration Checks
+name: CI Checks
+
 on:
   push:
     branches:
@@ -8,14 +9,17 @@ on:
     branches:
       - main
       - release-v*
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
+
 permissions:
   contents: read
+
 jobs:
   ci:
-    name: Continuous Integration Checks
+    name: Continuous Integration
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -25,26 +29,34 @@ jobs:
         shell: bash
     steps:
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Set-up Go
-        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
+
       # Runs golangci-lint using the config in your .golangci.yml
+      # FIX: Use v6 action and specify a recent linter version compatible with your config
       - name: Run Linters
-        uses: golangci/golangci-lint-action@ec5d18412c0aeab7936cb16880d708ba2a64e1ae # v6.0.1
+        uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          version: v1.64
           args: --timeout=5m
+
       # Ensures that go.mod and go.sum are up to date and clean
       - name: Check Go Module Tidy
         run: |
           go mod tidy
           git diff --exit-code go.mod go.sum
+
       # Runs unit tests with race detection
       - name: Run Tests
         run: go test -v -race -cover ./...
+
       # Verifies the provider compiles
       - name: Build Provider
         run: go build -v .
