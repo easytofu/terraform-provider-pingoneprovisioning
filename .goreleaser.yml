@@ -59,6 +59,7 @@ signs:
   # GPG: Signs the checksum file with your private key (Required for Terraform Registry)
   - id: gpg
     cmd: gpg
+    signature: "${artifact}.sig" # Explicitly name the GPG signature
     args:
       - --batch
       - --pinentry-mode=loopback
@@ -76,7 +77,7 @@ signs:
   # Cosign: Keyless signing of the checksum file (Optional / Security best practice)
   - id: cosign
     cmd: cosign
-    signature: "${artifact}.sig"
+    signature: "${artifact}.cosign.sig" # Renamed to avoid collision with GPG .sig
     certificate: "${artifact}.pem"
     args:
       - sign-blob
