@@ -19,7 +19,6 @@ type PropagationStoreModel struct {
 	SyncStatus                      types.Object                     `tfsdk:"sync_status"`
 	ConfigurationAquera             *ConfigurationAquera             `tfsdk:"configuration_aquera"`
 	ConfigurationAzureAdSamlV2      *ConfigurationAzureAdSamlV2      `tfsdk:"configuration_azure_ad_saml_v2"`
-	ConfigurationGithubEmu          *ConfigurationGithubEmu          `tfsdk:"configuration_github_emu"`
 	ConfigurationGoogleApps         *ConfigurationGoogleApps         `tfsdk:"configuration_google_apps"`
 	ConfigurationLdapGateway        *ConfigurationLdapGateway        `tfsdk:"configuration_ldap_gateway"`
 	ConfigurationPingOne            *ConfigurationPingOne            `tfsdk:"configuration_ping_one"`
@@ -66,15 +65,6 @@ type ConfigurationAzureAdSamlV2 struct {
 	CreateUsers      types.Bool   `tfsdk:"create_users"`
 	DeprovisionUsers types.Bool   `tfsdk:"deprovision_users"`
 	DisableUsers     types.Bool   `tfsdk:"disable_users"`
-	RemoveAction     types.String `tfsdk:"remove_action"`
-	UpdateUsers      types.Bool   `tfsdk:"update_users"`
-}
-
-type ConfigurationGithubEmu struct {
-	BaseUrl          types.String `tfsdk:"base_url"`
-	CreateUsers      types.Bool   `tfsdk:"create_users"`
-	DeprovisionUsers types.Bool   `tfsdk:"deprovision_users"`
-	OauthAccessToken types.String `tfsdk:"oauth_access_token"`
 	RemoveAction     types.String `tfsdk:"remove_action"`
 	UpdateUsers      types.Bool   `tfsdk:"update_users"`
 }
@@ -267,7 +257,6 @@ func PropagationStoreModelType() types.ObjectType {
 			"sync_status":                       types.ObjectType{AttrTypes: SyncStatusAttrTypes},
 			"configuration_aquera":              configurationAqueraAttrType(),
 			"configuration_azure_ad_saml_v2":    configurationAzureADSAMLAttrType(),
-			"configuration_github_emu":          configurationGithubEMUAttrType(),
 			"configuration_google_apps":         configurationGoogleAppsAttrType(),
 			"configuration_ldap_gateway":        configurationLdapGatewayAttrType(),
 			"configuration_ping_one":            configurationPingOneAttrType(),
@@ -315,19 +304,6 @@ func configurationAzureADSAMLAttrType() types.ObjectType {
 			"disable_users":     types.BoolType,
 			"remove_action":     types.StringType,
 			"update_users":      types.BoolType,
-		},
-	}
-}
-
-func configurationGithubEMUAttrType() types.ObjectType {
-	return types.ObjectType{
-		AttrTypes: map[string]attr.Type{
-			"base_url":           types.StringType,
-			"create_users":       types.BoolType,
-			"deprovision_users":  types.BoolType,
-			"oauth_access_token": types.StringType,
-			"remove_action":      types.StringType,
-			"update_users":       types.BoolType,
 		},
 	}
 }

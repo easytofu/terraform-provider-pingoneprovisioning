@@ -26,14 +26,14 @@ func TestExtractPropagationStoreTypeStatus(t *testing.T) {
 		t.Parallel()
 
 		resp := &http.Response{
-			Body: io.NopCloser(bytes.NewBufferString(`{"type":"GitHubEMU","status":"ACTIVE"}`)),
+			Body: io.NopCloser(bytes.NewBufferString(`{"type":"PingOne","status":"ACTIVE"}`)),
 		}
 
 		gotType, gotStatus, err := ExtractPropagationStoreTypeStatus(resp)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if gotType != "GitHubEMU" || gotStatus != "ACTIVE" {
+		if gotType != "PingOne" || gotStatus != "ACTIVE" {
 			t.Fatalf("unexpected values: type=%q status=%q", gotType, gotStatus)
 		}
 
@@ -41,7 +41,7 @@ func TestExtractPropagationStoreTypeStatus(t *testing.T) {
 		if readErr != nil {
 			t.Fatalf("failed reading restored body: %v", readErr)
 		}
-		if string(bodyBytes) != `{"type":"GitHubEMU","status":"ACTIVE"}` {
+		if string(bodyBytes) != `{"type":"PingOne","status":"ACTIVE"}` {
 			t.Fatalf("expected body to be restored, got %q", string(bodyBytes))
 		}
 	})

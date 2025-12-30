@@ -4,61 +4,11 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	customtypes "github.com/pingidentity/terraform-provider-pingoneprovisioning/internal/types"
+	customtypes "github.com/easytofu/terraform-provider-pingoneprovisioning/internal/types"
 )
 
 func TestApplyPropagationStoreConfigurationFromMap(t *testing.T) {
 	t.Parallel()
-
-	t.Run("github_emu_only_sets_matching_block_and_preserves_token", func(t *testing.T) {
-		t.Parallel()
-
-		model := customtypes.PropagationStoreModel{
-			ConfigurationAquera: &customtypes.ConfigurationAquera{},
-		}
-
-		prior := &customtypes.PropagationStoreModel{
-			ConfigurationGithubEmu: &customtypes.ConfigurationGithubEmu{
-				OauthAccessToken: types.StringValue("secret"),
-			},
-		}
-
-		config := map[string]interface{}{
-			"BASE_URL":          "https://api.example/scim",
-			"CREATE_USERS":      true,
-			"DEPROVISION_USERS": true,
-			"REMOVE_ACTION":     "Delete",
-			"UPDATE_USERS":      true,
-		}
-
-		ApplyPropagationStoreConfigurationFromMap(&model, "GithubEMU", config, prior)
-
-		if model.ConfigurationGithubEmu == nil {
-			t.Fatalf("expected configuration_github_emu to be set")
-		}
-		if got := model.ConfigurationGithubEmu.BaseUrl.ValueString(); got != "https://api.example/scim" {
-			t.Fatalf("unexpected base_url: %q", got)
-		}
-		if got := model.ConfigurationGithubEmu.OauthAccessToken.ValueString(); got != "secret" {
-			t.Fatalf("expected oauth_access_token to be preserved, got %q", got)
-		}
-
-		if model.ConfigurationAquera != nil ||
-			model.ConfigurationAzureAdSamlV2 != nil ||
-			model.ConfigurationGoogleApps != nil ||
-			model.ConfigurationLdapGateway != nil ||
-			model.ConfigurationPingOne != nil ||
-			model.ConfigurationSalesforce != nil ||
-			model.ConfigurationSalesforceContacts != nil ||
-			model.ConfigurationScim != nil ||
-			model.ScimConfiguration != nil ||
-			model.ConfigurationServiceNow != nil ||
-			model.ConfigurationSlack != nil ||
-			model.ConfigurationWorkday != nil ||
-			model.ConfigurationZoom != nil {
-			t.Fatalf("expected non-matching configuration blocks to be nil")
-		}
-	})
 
 	t.Run("scim_prefers_scim_configuration_and_preserves_secrets", func(t *testing.T) {
 		t.Parallel()
@@ -102,7 +52,6 @@ func TestApplyPropagationStoreConfigurationFromMap(t *testing.T) {
 
 		if model.ConfigurationAquera != nil ||
 			model.ConfigurationAzureAdSamlV2 != nil ||
-			model.ConfigurationGithubEmu != nil ||
 			model.ConfigurationGoogleApps != nil ||
 			model.ConfigurationLdapGateway != nil ||
 			model.ConfigurationPingOne != nil ||
@@ -127,7 +76,6 @@ func TestApplyPropagationStoreConfigurationFromMap(t *testing.T) {
 
 		if model.ConfigurationAquera != nil ||
 			model.ConfigurationAzureAdSamlV2 != nil ||
-			model.ConfigurationGithubEmu != nil ||
 			model.ConfigurationGoogleApps != nil ||
 			model.ConfigurationLdapGateway != nil ||
 			model.ConfigurationPingOne != nil ||

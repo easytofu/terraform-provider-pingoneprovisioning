@@ -11,8 +11,6 @@ func TestNormalizePropagationStoreTypeForAPI(t *testing.T) {
 		want string
 	}{
 		{name: "empty", in: "", want: ""},
-		{name: "githubemu_legacy", in: "GithubEMU", want: "GitHubEMU"},
-		{name: "githubemu_canonical", in: "GitHubEMU", want: "GitHubEMU"},
 		{name: "scim_upper", in: "SCIM", want: "scim"},
 		{name: "scim_lower", in: "scim", want: "scim"},
 		{name: "ldapgateway_upper", in: "LDAPGateway", want: "LdapGateway"},
@@ -20,7 +18,7 @@ func TestNormalizePropagationStoreTypeForAPI(t *testing.T) {
 		{name: "azure_tf", in: "AzureADSAMLV2", want: "AzureActiveDirectorySAML2"},
 		{name: "azure_api", in: "AzureActiveDirectorySAML2", want: "AzureActiveDirectorySAML2"},
 		{name: "passthrough", in: "PingOne", want: "PingOne"},
-		{name: "trims_whitespace", in: "  GitHubEMU ", want: "GitHubEMU"},
+		{name: "trims_whitespace", in: "  SCIM ", want: "scim"},
 	}
 
 	for _, tt := range tests {
@@ -45,9 +43,6 @@ func TestNormalizePropagationStoreTypeForTerraform(t *testing.T) {
 		want string
 	}{
 		{name: "empty", api: "", pref: "", want: ""},
-		{name: "github_defaults_to_legacy_spelling", api: "GitHubEMU", pref: "", want: "GithubEMU"},
-		{name: "github_keeps_legacy_spelling_when_configured", api: "GitHubEMU", pref: "GithubEMU", want: "GithubEMU"},
-		{name: "github_preserves_configured_spelling", api: "GitHubEMU", pref: "GitHubEMU", want: "GitHubEMU"},
 		{name: "scim_normalizes", api: "scim", pref: "", want: "SCIM"},
 		{name: "scim_preserves_configured_lowercase", api: "scim", pref: "scim", want: "scim"},
 		{name: "ldapgateway_normalizes", api: "LdapGateway", pref: "", want: "LDAPGateway"},

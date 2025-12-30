@@ -34,7 +34,10 @@ builds:
     ignore:
       - goos: darwin
         goarch: "386"
-    binary: "{{ .ProjectName }}_v{{ .Version }}"
+      # FIX: Windows on 32-bit ARM is not a supported target for most providers
+      - goos: windows
+        goarch: arm
+    binary: "{{ .ProjectName }}"
 
 archives:
   - formats: ['zip']
@@ -52,25 +55,32 @@ checksum:
   algorithm: sha256
 
 signs:
+  # GPG: Signs the checksum file with your private key (Required for Terraform Registry)
   - id: gpg
     cmd: gpg
     args:
       - --batch
+      - --pinentry-mode=loopback
+      - --passphrase-fd=0
       - --local-user
       - "{{ .Env.GPG_FINGERPRINT }}"
       - --output
       - "${signature}"
       - --detach-sign
       - "${artifact}"
+    # FIX: Pass the env var into GPG's stdin so it doesn't hang waiting for a prompt
+    stdin: "{{ .Env.GPG_PASSPHRASE }}"
     artifacts: checksum
+
+  # Cosign: Keyless signing of the checksum file (Optional / Security best practice)
   - id: cosign
-    signature: "${artifact}.sbom.json.bundle"
     cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    certificate: "${artifact}.pem"
     args:
       - sign-blob
-      - --new-bundle-format
-      - --bundle
-      - "${signature}"
+      - --yes
+      - --bundle=${signature}
       - "${artifact}"
     artifacts: checksum
 
@@ -78,8 +88,6 @@ release:
   extra_files:
     - glob: terraform-registry-manifest.json
       name_template: "{{ .ProjectName }}_{{ .Version }}_manifest.json"
-      # If you want to manually examine the release before its live, uncomment this line:
-      # draft: true
 
 changelog:
   disable: true

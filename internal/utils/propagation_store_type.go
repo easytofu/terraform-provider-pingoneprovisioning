@@ -6,19 +6,12 @@ import "strings"
 // NormalizePropagationStoreTypeForAPI converts Terraform-facing propagation store type values
 // into the exact type string expected by the PingOne Management API.
 //
-// PingOne's API expects `GitHubEMU`, but earlier versions of this provider (and existing
-// configurations) used `GithubEMU`. The API is case-sensitive and will reject the old value.
 func NormalizePropagationStoreTypeForAPI(tfType string) string {
 	// Trim whitespace defensively, then normalize case-sensitive enum values.
 	t := strings.TrimSpace(tfType)
 
 	if t == "" {
 		return t
-	}
-
-	// GitHub Enterprise Managed Users (EMU)
-	if strings.EqualFold(t, "GithubEMU") || strings.EqualFold(t, "GitHubEMU") {
-		return "GitHubEMU"
 	}
 
 	// Azure AD SAML v2
@@ -50,18 +43,6 @@ func NormalizePropagationStoreTypeForTerraform(apiType string, preferredTFType s
 
 	if apiT == "" {
 		return apiT
-	}
-
-	// GitHub Enterprise Managed Users (EMU)
-	if strings.EqualFold(apiT, "GitHubEMU") || strings.EqualFold(apiT, "GithubEMU") {
-		// Preserve the user's configured spelling if they opted into `GitHubEMU`.
-		// This must be a case-sensitive check to differentiate between `GithubEMU`
-		// and `GitHubEMU`.
-		if pref == "GitHubEMU" {
-			return "GitHubEMU"
-		}
-		// Default to the historical Terraform spelling for backward compatibility.
-		return "GithubEMU"
 	}
 
 	// Azure AD SAML v2

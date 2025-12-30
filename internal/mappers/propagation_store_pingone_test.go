@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	customtypes "github.com/pingidentity/terraform-provider-pingoneprovisioning/internal/types"
+	customtypes "github.com/easytofu/terraform-provider-pingoneprovisioning/internal/types"
 )
 
 func TestPingOneToMap_OmitsUnsetConnectionFields(t *testing.T) {

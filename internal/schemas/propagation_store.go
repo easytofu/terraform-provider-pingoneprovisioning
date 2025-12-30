@@ -75,20 +75,6 @@ func AzureAdSamlV2ConfigSchema(isDataSource bool) schema.Block {
 	}
 }
 
-// GithubEMU
-func GithubEmuConfigSchema(isDataSource bool) schema.Block {
-	return schema.SingleNestedBlock{
-		Attributes: map[string]schema.Attribute{
-			"base_url":           requiredOrComputedString(isDataSource, false),
-			"oauth_access_token": optionalOrComputedString(isDataSource, true),
-			"create_users":       optionalOrComputedBool(isDataSource, true),
-			"deprovision_users":  optionalOrComputedBool(isDataSource, true),
-			"remove_action":      optionalOrComputedString(isDataSource, false),
-			"update_users":       optionalOrComputedBool(isDataSource, true),
-		},
-	}
-}
-
 // GoogleApps
 func GoogleAppsConfigSchema(isDataSource bool) schema.Block {
 	return schema.SingleNestedBlock{

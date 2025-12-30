@@ -1,7 +1,7 @@
 package mappers
 
 import (
-	customtypes "github.com/pingidentity/terraform-provider-pingoneprovisioning/internal/types"
+	customtypes "github.com/easytofu/terraform-provider-pingoneprovisioning/internal/types"
 )
 
 // ApplyPropagationStoreConfigurationFromMap populates exactly one configuration_* block on the
@@ -13,7 +13,6 @@ import (
 func ApplyPropagationStoreConfigurationFromMap(model *customtypes.PropagationStoreModel, tfType string, config map[string]interface{}, prior *customtypes.PropagationStoreModel) {
 	model.ConfigurationAquera = nil
 	model.ConfigurationAzureAdSamlV2 = nil
-	model.ConfigurationGithubEmu = nil
 	model.ConfigurationGoogleApps = nil
 	model.ConfigurationLdapGateway = nil
 	model.ConfigurationPingOne = nil
@@ -33,18 +32,6 @@ func ApplyPropagationStoreConfigurationFromMap(model *customtypes.PropagationSto
 	case "AzureADSAMLV2":
 		model.ConfigurationAzureAdSamlV2 = &customtypes.ConfigurationAzureAdSamlV2{}
 		AzureAdSamlV2FromMap(model.ConfigurationAzureAdSamlV2, config)
-	case "GithubEMU", "GitHubEMU":
-		model.ConfigurationGithubEmu = &customtypes.ConfigurationGithubEmu{}
-		GithubEMUFromMap(model.ConfigurationGithubEmu, config)
-
-		// GitHub EMU tokens are typically write-only; preserve the configured value when the
-		// API response does not include it.
-		if prior != nil && prior.ConfigurationGithubEmu != nil {
-			if (model.ConfigurationGithubEmu.OauthAccessToken.IsNull() || model.ConfigurationGithubEmu.OauthAccessToken.IsUnknown()) &&
-				!prior.ConfigurationGithubEmu.OauthAccessToken.IsNull() && !prior.ConfigurationGithubEmu.OauthAccessToken.IsUnknown() {
-				model.ConfigurationGithubEmu.OauthAccessToken = prior.ConfigurationGithubEmu.OauthAccessToken
-			}
-		}
 	case "GoogleApps":
 		model.ConfigurationGoogleApps = &customtypes.ConfigurationGoogleApps{}
 		GoogleAppsFromMap(model.ConfigurationGoogleApps, config)

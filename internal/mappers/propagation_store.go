@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	customtypes "github.com/pingidentity/terraform-provider-pingoneprovisioning/internal/types"
-	"github.com/pingidentity/terraform-provider-pingoneprovisioning/internal/utils"
+	customtypes "github.com/easytofu/terraform-provider-pingoneprovisioning/internal/types"
+	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/utils"
 )
 
 // ModelToConfigurationMap builds the configuration map to send to PingOne based on the propagation store type.
@@ -24,11 +24,6 @@ func ModelToConfigurationMap(m *customtypes.PropagationStoreModel) (map[string]i
 			return nil, fmt.Errorf("configuration_azure_ad_saml_v2 must be provided for type 'AzureADSAMLV2'")
 		}
 		return AzureAdSamlV2ToMap(m.ConfigurationAzureAdSamlV2), nil
-	case "GithubEMU", "GitHubEMU":
-		if m.ConfigurationGithubEmu == nil {
-			return nil, fmt.Errorf("configuration_github_emu must be provided for type 'GithubEMU'")
-		}
-		return GithubEMUToMap(m.ConfigurationGithubEmu), nil
 	case "GoogleApps":
 		if m.ConfigurationGoogleApps == nil {
 			return nil, fmt.Errorf("configuration_google_apps must be provided for type 'GoogleApps'")
@@ -204,46 +199,6 @@ func AzureAdSamlV2FromMap(c *customtypes.ConfigurationAzureAdSamlV2, config map[
 	c.CreateUsers = utils.FromMapBool(config, "CREATE_USERS")
 	c.DeprovisionUsers = utils.FromMapBool(config, "DEPROVISION_USERS")
 	c.DisableUsers = utils.FromMapBool(config, "DISABLE_USERS")
-	c.RemoveAction = utils.FromMapString(config, "REMOVE_ACTION")
-	c.UpdateUsers = utils.FromMapBool(config, "UPDATE_USERS")
-}
-
-// GithubEMUToMap maps GitHub EMU configuration model to API configuration map.
-func GithubEMUToMap(c *customtypes.ConfigurationGithubEmu) map[string]interface{} {
-	m := make(map[string]interface{})
-
-	m["BASE_URL"] = c.BaseUrl.ValueString()
-
-	if !c.OauthAccessToken.IsNull() {
-		m["OAUTH_ACCESS_TOKEN"] = c.OauthAccessToken.ValueString()
-	}
-	if !c.CreateUsers.IsNull() {
-		m["CREATE_USERS"] = c.CreateUsers.ValueBool()
-	}
-	if !c.DeprovisionUsers.IsNull() {
-		m["DEPROVISION_USERS"] = c.DeprovisionUsers.ValueBool()
-	}
-	if !c.RemoveAction.IsNull() {
-		m["REMOVE_ACTION"] = c.RemoveAction.ValueString()
-	}
-	if !c.UpdateUsers.IsNull() {
-		m["UPDATE_USERS"] = c.UpdateUsers.ValueBool()
-	}
-
-	return m
-}
-
-// GithubEMUFromMap maps API configuration map to GitHub EMU configuration model.
-func GithubEMUFromMap(c *customtypes.ConfigurationGithubEmu, config map[string]interface{}) {
-	if config == nil {
-		return
-	}
-
-	c.BaseUrl = utils.FromMapString(config, "BASE_URL")
-
-	c.OauthAccessToken = utils.FromMapString(config, "OAUTH_ACCESS_TOKEN")
-	c.CreateUsers = utils.FromMapBool(config, "CREATE_USERS")
-	c.DeprovisionUsers = utils.FromMapBool(config, "DEPROVISION_USERS")
 	c.RemoveAction = utils.FromMapString(config, "REMOVE_ACTION")
 	c.UpdateUsers = utils.FromMapBool(config, "UPDATE_USERS")
 }

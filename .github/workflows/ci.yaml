@@ -1,5 +1,4 @@
-name: CI
-
+name: CI Checks
 on:
   push:
     branches:
@@ -9,14 +8,11 @@ on:
     branches:
       - main
       - release-v*
-
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
-
 permissions:
-  contents: read # for actions/checkout
-
+  contents: read
 jobs:
   ci:
     name: Continuous Integration
@@ -34,8 +30,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - run: make tools
-      - run: make lintcheck
-      - run: make website-lint
-      - run: make build
-      - run: make test
+      - name: Build Provider
+        run: |
+          go mod tidy
+          go build

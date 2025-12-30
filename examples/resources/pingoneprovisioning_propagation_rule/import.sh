@@ -1,0 +1,1 @@
+terraform import pingoneprovisioning_propagation_rule.example 00000000-0000-0000-0000-000000000000/55555555-5555-5555-5555-555555555555
