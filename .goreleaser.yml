@@ -44,10 +44,6 @@ archives:
   - formats: ['zip']
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
-sboms:
-  - id: default
-    artifacts: source
-
 checksum:
   extra_files:
     - glob: "terraform-registry-manifest.json"
@@ -56,7 +52,7 @@ checksum:
   algorithm: sha256
 
 signs:
-  # GPG: Signs the checksum file with your private key (Required for Terraform Registry)
+  # GPG: Signs the checksum file with your private key (Required for Terraform Registry).
   - id: gpg
     cmd: gpg
     signature: "${artifact}.sig" # Explicitly force .sig extension for Terraform Registry
@@ -72,17 +68,6 @@ signs:
       - "${artifact}"
     # FIX: Pass the env var into GPG's stdin so it doesn't hang waiting for a prompt
     stdin: "{{ .Env.GPG_PASSPHRASE }}"
-    artifacts: checksum
-
-  # Cosign: Keyless signing of the checksum file (Optional / Security best practice)
-  - id: cosign
-    cmd: cosign
-    signature: "${artifact}.sigstore.json" # Use .sigstore.json to avoid collision with GPG .sig
-    args:
-      - sign-blob
-      - --yes
-      - --bundle=${signature} # Generate a bundle (cert + sig) to satisfy OIDC requirements
-      - "${artifact}"
     artifacts: checksum
 
 release:
