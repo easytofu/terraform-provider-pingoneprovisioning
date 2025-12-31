@@ -50,7 +50,7 @@ export PINGONE_CLIENT_SECRET="..."
 export PINGONE_ENVIRONMENT_ID="..."
 ```
 
-The provider also supports GitHub Enterprise APIs for team and SCIM operations. Configure a GitHub token when using those resources or data sources:
+The provider also supports GitHub SCIM operations. Configure a GitHub token when using those data sources:
 
 ```shell
 export GITHUB_TOKEN="..."

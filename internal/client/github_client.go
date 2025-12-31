@@ -1,4 +1,4 @@
-package githubapi
+package client
 
 import (
 	"bytes"
@@ -24,7 +24,7 @@ const (
 	scimAccept        = "application/scim+json"
 )
 
-type Client struct {
+type GitHubClient struct {
 	HTTPClient *http.Client
 	BaseURL    string
 	Token      string
@@ -32,7 +32,7 @@ type Client struct {
 	UserAgent  string
 }
 
-func NewClient(token string, baseURL string, apiVersion string, userAgent string, httpClient *http.Client) (*Client, error) {
+func NewGitHubClient(token string, baseURL string, apiVersion string, userAgent string, httpClient *http.Client) (*GitHubClient, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return nil, nil
@@ -61,7 +61,7 @@ func NewClient(token string, baseURL string, apiVersion string, userAgent string
 		httpClient = &http.Client{Timeout: 90 * time.Second}
 	}
 
-	return &Client{
+	return &GitHubClient{
 		HTTPClient: httpClient,
 		BaseURL:    normalizedBaseURL,
 		Token:      token,
@@ -70,7 +70,7 @@ func NewClient(token string, baseURL string, apiVersion string, userAgent string
 	}, nil
 }
 
-func (c *Client) Do(ctx context.Context, method string, path string, query url.Values, payload any) (*http.Response, error) {
+func (c *GitHubClient) Do(ctx context.Context, method string, path string, query url.Values, payload any) (*http.Response, error) {
 	if c == nil {
 		return nil, fmt.Errorf("nil github client")
 	}
@@ -149,7 +149,7 @@ func (c *Client) Do(ctx context.Context, method string, path string, query url.V
 	return resp, nil
 }
 
-func (c *Client) buildURL(path string, query url.Values) (string, error) {
+func (c *GitHubClient) buildURL(path string, query url.Values) (string, error) {
 	base, err := url.Parse(c.BaseURL)
 	if err != nil {
 		return "", err

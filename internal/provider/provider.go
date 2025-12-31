@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/client"
-	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/githubapi"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
@@ -198,7 +197,7 @@ func (p *PingOneProvisioningProvider) Configure(ctx context.Context, req provide
 			userAgent = fmt.Sprintf("terraform-provider-pingoneprovisioning/%s", p.Version)
 		}
 
-		githubClient, ghErr := githubapi.NewClient(githubToken, githubAPIBaseURL, githubAPIVersion, userAgent, nil)
+		githubClient, ghErr := client.NewGitHubClient(githubToken, githubAPIBaseURL, githubAPIVersion, userAgent, nil)
 		if ghErr != nil {
 			resp.Diagnostics.AddError(
 				"Unable to create GitHub client",
@@ -424,11 +423,6 @@ func (p *PingOneProvisioningProvider) Resources(_ context.Context) []func() reso
 		NewPropagationPlanResource,
 		NewPropagationRuleResource,
 		NewUserCustomAttributesResource,
-		NewGithubEnterpriseTeamResource,
-		NewGithubEnterpriseTeamMemberResource,
-		NewGithubEnterpriseTeamMembersResource,
-		NewGithubEnterpriseTeamOrganizationResource,
-		NewGithubEnterpriseTeamOrganizationsResource,
 	}
 }
 
@@ -440,7 +434,6 @@ func (p *PingOneProvisioningProvider) DataSources(_ context.Context) []func() da
 		NewPropagationPlanDataSource,
 		NewPropagationRuleDataSource,
 		NewGroupsDataSource,
-		NewGithubEnterpriseTeamsDataSource,
 		NewGithubScimGroupDataSource,
 	}
 }

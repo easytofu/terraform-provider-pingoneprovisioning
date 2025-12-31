@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/client"
-	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/githubapi"
 	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -22,7 +21,7 @@ var (
 )
 
 type githubScimGroupDataSource struct {
-	client *githubapi.Client
+	client *client.GitHubClient
 }
 
 type githubScimGroupDataSourceModel struct {
