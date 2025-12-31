@@ -42,7 +42,7 @@ resource "pingoneprovisioning_propagation_store" "scim" {
 
 - `environment_id` (String) The ID of the environment.
 - `name` (String) A name for the identity store.
-- `type` (String) The type of the identity store. Options are `Aquera`, `AzureADSAMLV2`, `GoogleApps`, `LDAPGateway`, `PingOne`, `Salesforce`, `SalesforceContacts`, `SCIM` (alias: `scim`), `ServiceNow`, `Slack`, `Workday`, `Zoom`.
+- `type` (String) The type of the identity store. Options are `Aquera`, `AzureADSAMLV2`, `GithubEMU`, `GitHubEMU`, `GoogleApps`, `LDAPGateway`, `PingOne`, `Salesforce`, `SalesforceContacts`, `SCIM` (alias: `scim`), `ServiceNow`, `Slack`, `Workday`, `Zoom`.
 
 ### Optional
 
@@ -52,6 +52,7 @@ resource "pingoneprovisioning_propagation_store" "scim" {
 - `status` (String) The status of the propagation store.
 - `configuration_aquera` (Block) Aquera configuration. (see [below for nested schema](#nestedblock--configuration_aquera))
 - `configuration_azure_ad_saml_v2` (Block) Azure AD SAML v2 configuration. (see [below for nested schema](#nestedblock--configuration_azure_ad_saml_v2))
+- `configuration_github_emu` (Block) GitHub EMU configuration. (see [below for nested schema](#nestedblock--configuration_github_emu))
 - `configuration_google_apps` (Block) Google Apps configuration. (see [below for nested schema](#nestedblock--configuration_google_apps))
 - `configuration_ldap_gateway` (Block) LDAP Gateway configuration. (see [below for nested schema](#nestedblock--configuration_ldap_gateway))
 - `configuration_ping_one` (Block) PingOne configuration. (see [below for nested schema](#nestedblock--configuration_ping_one))
@@ -112,6 +113,18 @@ Optional:
 - `group_name_source` (String)
 - `remove_action` (String)
 - `scim_url` (String)
+- `update_users` (Boolean)
+
+<a id="nestedblock--configuration_github_emu"></a>
+### Nested Schema for `configuration_github_emu`
+
+Optional:
+
+- `base_url` (String)
+- `create_users` (Boolean)
+- `deprovision_users` (Boolean)
+- `oauth_access_token` (String)
+- `remove_action` (String)
 - `update_users` (Boolean)
 
 <a id="nestedblock--configuration_google_apps"></a>

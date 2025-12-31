@@ -12,6 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/client"
+	customtypes "github.com/easytofu/terraform-provider-pingoneprovisioning/internal/types"
+	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -20,9 +23,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/patrickcping/pingone-go-sdk-v2/management"
-	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/client"
-	customtypes "github.com/easytofu/terraform-provider-pingoneprovisioning/internal/types"
-	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/utils"
 )
 
 var (

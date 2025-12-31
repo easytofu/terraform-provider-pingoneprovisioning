@@ -11,6 +11,9 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/client"
+	customtypes "github.com/easytofu/terraform-provider-pingoneprovisioning/internal/types"
+	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -21,9 +24,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/patrickcping/pingone-go-sdk-v2/management"
-	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/client"
-	customtypes "github.com/easytofu/terraform-provider-pingoneprovisioning/internal/types"
-	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/utils"
 )
 
 var (

@@ -12,13 +12,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/client"
+	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/githubapi"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/patrickcping/pingone-go-sdk-v2/management"
-	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/client"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 )
@@ -35,12 +36,15 @@ type PingOneProvisioningProvider struct {
 
 // PingOneProvisioningProviderModel describes the provider data model.
 type PingOneProvisioningProviderModel struct {
-	ClientId      types.String `tfsdk:"client_id"`
-	ClientSecret  types.String `tfsdk:"client_secret"`
-	EnvironmentId types.String `tfsdk:"environment_id"`
-	Region        types.String `tfsdk:"region"`
-	OauthTokenURL types.String `tfsdk:"oauth_token_url"`
-	APIBaseURL    types.String `tfsdk:"api_base_url"`
+	ClientId         types.String `tfsdk:"client_id"`
+	ClientSecret     types.String `tfsdk:"client_secret"`
+	EnvironmentId    types.String `tfsdk:"environment_id"`
+	Region           types.String `tfsdk:"region"`
+	OauthTokenURL    types.String `tfsdk:"oauth_token_url"`
+	APIBaseURL       types.String `tfsdk:"api_base_url"`
+	GithubToken      types.String `tfsdk:"github_token"`
+	GithubAPIBaseURL types.String `tfsdk:"github_api_base_url"`
+	GithubAPIVersion types.String `tfsdk:"github_api_version"`
 }
 
 // New is a helper function to simplify the provider implementation.
@@ -86,6 +90,19 @@ func (p *PingOneProvisioningProvider) Schema(_ context.Context, _ provider.Schem
 			},
 			"api_base_url": schema.StringAttribute{
 				Description: "Optional override for the Management API base URL (example: `https://api.pingone.com/v1`). If unset, derived from `region`.",
+				Optional:    true,
+			},
+			"github_token": schema.StringAttribute{
+				Description: "GitHub classic personal access token for enterprise team APIs. Can also be set with the `GITHUB_TOKEN` environment variable.",
+				Optional:    true,
+				Sensitive:   true,
+			},
+			"github_api_base_url": schema.StringAttribute{
+				Description: "Optional override for the GitHub API base URL (default: `https://api.github.com`). Can also be set with the `GITHUB_API_BASE_URL` environment variable.",
+				Optional:    true,
+			},
+			"github_api_version": schema.StringAttribute{
+				Description: "Optional override for the GitHub API version header (default: `2022-11-28`). Can also be set with the `GITHUB_API_VERSION` environment variable.",
 				Optional:    true,
 			},
 		},
@@ -135,6 +152,21 @@ func (p *PingOneProvisioningProvider) Configure(ctx context.Context, req provide
 		apiBaseURL = strings.TrimSpace(config.APIBaseURL.ValueString())
 	}
 
+	githubToken := os.Getenv("GITHUB_TOKEN")
+	if !config.GithubToken.IsNull() {
+		githubToken = config.GithubToken.ValueString()
+	}
+
+	githubAPIBaseURL := os.Getenv("GITHUB_API_BASE_URL")
+	if !config.GithubAPIBaseURL.IsNull() {
+		githubAPIBaseURL = strings.TrimSpace(config.GithubAPIBaseURL.ValueString())
+	}
+
+	githubAPIVersion := os.Getenv("GITHUB_API_VERSION")
+	if !config.GithubAPIVersion.IsNull() {
+		githubAPIVersion = strings.TrimSpace(config.GithubAPIVersion.ValueString())
+	}
+
 	// Map short codes (terraform standard) to Long Codes (SDK Requirement)
 	mappedRegion := mapRegion(region)
 
@@ -158,6 +190,24 @@ func (p *PingOneProvisioningProvider) Configure(ctx context.Context, req provide
 	// Create the provider client structure to pass to resources
 	clientData := &client.Client{
 		API: apiClient,
+	}
+
+	if githubToken != "" {
+		userAgent := "terraform-provider-pingoneprovisioning"
+		if p.Version != "" {
+			userAgent = fmt.Sprintf("terraform-provider-pingoneprovisioning/%s", p.Version)
+		}
+
+		githubClient, ghErr := githubapi.NewClient(githubToken, githubAPIBaseURL, githubAPIVersion, userAgent, nil)
+		if ghErr != nil {
+			resp.Diagnostics.AddError(
+				"Unable to create GitHub client",
+				fmt.Sprintf("An error occurred when creating the GitHub client: %s", ghErr),
+			)
+			return
+		}
+
+		clientData.GitHub = githubClient
 	}
 
 	resp.DataSourceData = clientData
@@ -374,6 +424,11 @@ func (p *PingOneProvisioningProvider) Resources(_ context.Context) []func() reso
 		NewPropagationPlanResource,
 		NewPropagationRuleResource,
 		NewUserCustomAttributesResource,
+		NewGithubEnterpriseTeamResource,
+		NewGithubEnterpriseTeamMemberResource,
+		NewGithubEnterpriseTeamMembersResource,
+		NewGithubEnterpriseTeamOrganizationResource,
+		NewGithubEnterpriseTeamOrganizationsResource,
 	}
 }
 
@@ -385,5 +440,7 @@ func (p *PingOneProvisioningProvider) DataSources(_ context.Context) []func() da
 		NewPropagationPlanDataSource,
 		NewPropagationRuleDataSource,
 		NewGroupsDataSource,
+		NewGithubEnterpriseTeamsDataSource,
+		NewGithubScimGroupDataSource,
 	}
 }

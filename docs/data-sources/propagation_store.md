@@ -47,6 +47,7 @@ data "pingoneprovisioning_propagation_store" "by_name" {
 - `sync_status` (Object) Sync status for the propagation store. (see [below for nested schema](#nestedatt--sync_status))
 - `configuration_aquera` (Block) Aquera configuration. (see [below for nested schema](#nestedatt--configuration_aquera))
 - `configuration_azure_ad_saml_v2` (Block) Azure AD SAML v2 configuration. (see [below for nested schema](#nestedatt--configuration_azure_ad_saml_v2))
+- `configuration_github_emu` (Block) GitHub EMU configuration. (see [below for nested schema](#nestedatt--configuration_github_emu))
 - `configuration_google_apps` (Block) Google Apps configuration. (see [below for nested schema](#nestedatt--configuration_google_apps))
 - `configuration_ldap_gateway` (Block) LDAP Gateway configuration. (see [below for nested schema](#nestedatt--configuration_ldap_gateway))
 - `configuration_ping_one` (Block) PingOne configuration. (see [below for nested schema](#nestedatt--configuration_ping_one))
@@ -101,6 +102,18 @@ Read-Only:
 - `group_name_source` (String)
 - `remove_action` (String)
 - `scim_url` (String)
+- `update_users` (Boolean)
+
+<a id="nestedatt--configuration_github_emu"></a>
+### Nested Schema for `configuration_github_emu`
+
+Read-Only:
+
+- `base_url` (String)
+- `create_users` (Boolean)
+- `deprovision_users` (Boolean)
+- `oauth_access_token` (String)
+- `remove_action` (String)
 - `update_users` (Boolean)
 
 <a id="nestedatt--configuration_google_apps"></a>

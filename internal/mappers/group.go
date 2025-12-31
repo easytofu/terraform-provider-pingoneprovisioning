@@ -3,9 +3,9 @@ package mappers
 import (
 	"strings"
 
+	customtypes "github.com/easytofu/terraform-provider-pingoneprovisioning/internal/types"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/patrickcping/pingone-go-sdk-v2/management"
-	customtypes "github.com/easytofu/terraform-provider-pingoneprovisioning/internal/types"
 )
 
 // GroupToModel maps a PingOne Group to the Terraform data model.

@@ -7,6 +7,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/client"
+	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/mappers"
+	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/schemas"
+	customtypes "github.com/easytofu/terraform-provider-pingoneprovisioning/internal/types"
+	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -18,11 +23,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/patrickcping/pingone-go-sdk-v2/management"
-	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/mappers"
-	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/client"
-	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/schemas"
-	customtypes "github.com/easytofu/terraform-provider-pingoneprovisioning/internal/types"
-	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/utils"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -76,15 +76,16 @@ func (r *propagationStoreResource) Schema(_ context.Context, req resource.Schema
 				Optional:    true,
 			},
 			"type": schema.StringAttribute{
-				Description: "The type of the identity store. Options are `Aquera`, `AzureADSAMLV2`, `GoogleApps`, `LDAPGateway`, `PingOne`, `Salesforce`, `SalesforceContacts`, `SCIM` (alias: `scim`), `ServiceNow`, `Slack`, `Workday`, `Zoom`.",
+				Description: "The type of the identity store. Options are `Aquera`, `AzureADSAMLV2`, `GithubEMU`, `GitHubEMU`, `GoogleApps`, `LDAPGateway`, `PingOne`, `Salesforce`, `SalesforceContacts`, `SCIM` (alias: `scim`), `ServiceNow`, `Slack`, `Workday`, `Zoom`.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
 					stringvalidator.OneOf(
-						"Aquera", "AzureADSAMLV2", "GoogleApps", "LDAPGateway", "PingOne", "Salesforce",
-						"SalesforceContacts", "SCIM", "ServiceNow", "scim", "Slack", "Workday", "Zoom",
+						"Aquera", "AzureADSAMLV2", "GithubEMU", "GitHubEMU", "GoogleApps", "LDAPGateway",
+						"PingOne", "Salesforce", "SalesforceContacts", "SCIM", "ServiceNow",
+						"scim", "Slack", "Workday", "Zoom",
 					),
 				},
 			},
@@ -121,6 +122,7 @@ func (r *propagationStoreResource) Schema(_ context.Context, req resource.Schema
 		Blocks: map[string]schema.Block{
 			"configuration_aquera":              schemas.AqueraConfigSchema(false),
 			"configuration_azure_ad_saml_v2":    schemas.AzureAdSamlV2ConfigSchema(false),
+			"configuration_github_emu":          schemas.GithubEmuConfigSchema(false),
 			"configuration_google_apps":         schemas.GoogleAppsConfigSchema(false),
 			"configuration_ldap_gateway":        schemas.LdapGatewayConfigSchema(false),
 			"configuration_ping_one":            schemas.PingOneConfigSchema(false),

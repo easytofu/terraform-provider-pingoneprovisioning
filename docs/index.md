@@ -50,6 +50,12 @@ export PINGONE_CLIENT_SECRET="..."
 export PINGONE_ENVIRONMENT_ID="..."
 ```
 
+The provider also supports GitHub Enterprise APIs for team and SCIM operations. Configure a GitHub token when using those resources or data sources:
+
+```shell
+export GITHUB_TOKEN="..."
+```
+
 ## Schema
 
 ### Optional
@@ -60,3 +66,6 @@ export PINGONE_ENVIRONMENT_ID="..."
 - `region` (String) The PingOne region to use. Short codes: `NA`, `EU`, `AP`, `CA`, `AU`, `SG`. Long codes: `NorthAmerica`, `Europe`, `AsiaPacific`, `Australia-AsiaPacific`, `Canada`, `Singapore`. Default: `NA`. Can also be set with the `PINGONE_REGION` environment variable.
 - `oauth_token_url` (String) Optional override for the OAuth token URL (example: `https://auth.pingone.com/<env_id>/as/token`). If unset, derived from `region` and `environment_id`.
 - `api_base_url` (String) Optional override for the Management API base URL (example: `https://api.pingone.com/v1`). If unset, derived from `region`.
+- `github_token` (String) GitHub classic personal access token for enterprise team APIs. Can also be set with the `GITHUB_TOKEN` environment variable.
+- `github_api_base_url` (String) Optional override for the GitHub API base URL (default: `https://api.github.com`). Can also be set with the `GITHUB_API_BASE_URL` environment variable.
+- `github_api_version` (String) Optional override for the GitHub API version header (default: `2022-11-28`). Can also be set with the `GITHUB_API_VERSION` environment variable.

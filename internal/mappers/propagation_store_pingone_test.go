@@ -3,8 +3,8 @@ package mappers
 import (
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	customtypes "github.com/easytofu/terraform-provider-pingoneprovisioning/internal/types"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 func TestPingOneToMap_OmitsUnsetConnectionFields(t *testing.T) {

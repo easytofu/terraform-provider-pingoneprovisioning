@@ -10,6 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/client"
+	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/mappers"
+	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/schemas"
+	customtypes "github.com/easytofu/terraform-provider-pingoneprovisioning/internal/types"
+	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -18,11 +23,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/patrickcping/pingone-go-sdk-v2/management"
-	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/mappers"
-	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/client"
-	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/schemas"
-	customtypes "github.com/easytofu/terraform-provider-pingoneprovisioning/internal/types"
-	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/utils"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -102,6 +102,7 @@ func (d *propagationStoreDataSource) Schema(_ context.Context, req datasource.Sc
 		Blocks: map[string]schema.Block{
 			"configuration_aquera":              schemas.AqueraConfigSchema(true),
 			"configuration_azure_ad_saml_v2":    schemas.AzureAdSamlV2ConfigSchema(true),
+			"configuration_github_emu":          schemas.GithubEmuConfigSchema(true),
 			"configuration_google_apps":         schemas.GoogleAppsConfigSchema(true),
 			"configuration_ldap_gateway":        schemas.LdapGatewayConfigSchema(true),
 			"configuration_ping_one":            schemas.PingOneConfigSchema(true),

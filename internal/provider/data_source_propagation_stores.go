@@ -9,16 +9,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/client"
+	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/mappers"
+	customtypes "github.com/easytofu/terraform-provider-pingoneprovisioning/internal/types"
+	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/patrickcping/pingone-go-sdk-v2/management"
-	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/mappers"
-	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/client"
-	customtypes "github.com/easytofu/terraform-provider-pingoneprovisioning/internal/types"
-	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/utils"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
