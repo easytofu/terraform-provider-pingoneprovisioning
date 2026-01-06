@@ -705,11 +705,7 @@ func ScimFromMap(c *customtypes.ConfigurationScim, config map[string]interface{}
 	c.ScimVersion = utils.FromMapString(config, "SCIM_VERSION")
 	c.UniqueUserIdentifier = utils.FromMapString(config, "UNIQUE_USER_IDENTIFIER")
 	c.UpdateUsers = utils.FromMapBool(config, "UPDATE_USERS")
-	userFilter := utils.FromMapString(config, "USER_FILTER")
-	if !userFilter.IsNull() && userFilter.ValueString() == "" {
-		userFilter = types.StringNull()
-	}
-	c.UserFilter = userFilter
+	c.UserFilter = utils.FromMapString(config, "USER_FILTER")
 	c.UsersResource = utils.FromMapString(config, "USERS_RESOURCE")
 }
 
