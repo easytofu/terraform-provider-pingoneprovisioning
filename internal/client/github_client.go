@@ -7,14 +7,26 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/easytofu/terraform-provider-pingoneprovisioning/internal/utils"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+)
+
+const (
+	// Retry configuration for rate limiting
+	maxRetryTimeout = 5 * time.Minute
+	initialBackoff  = 1 * time.Second
+	maxBackoff      = 60 * time.Second
+	backoffFactor   = 2.0
 )
 
 const (
@@ -84,69 +96,175 @@ func (c *GitHubClient) Do(ctx context.Context, method string, path string, query
 	}
 
 	var bodyBytes []byte
-	var bodyReader *bytes.Reader
 	if payload != nil {
 		bodyBytes, err = json.Marshal(payload)
 		if err != nil {
 			return nil, err
 		}
-		bodyReader = bytes.NewReader(bodyBytes)
-	} else {
-		bodyReader = bytes.NewReader(nil)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, endpoint, bodyReader)
-	if err != nil {
-		return nil, err
 	}
 
 	acceptHeader := defaultAccept
 	if isScimPath(path) {
 		acceptHeader = scimAccept
 	}
-	req.Header.Set("Accept", acceptHeader)
-	req.Header.Set("Authorization", "Bearer "+c.Token)
-	req.Header.Set("X-GitHub-Api-Version", c.APIVersion)
-	req.Header.Set("User-Agent", c.UserAgent)
-	if payload != nil {
-		contentType := "application/json"
-		if acceptHeader == scimAccept {
-			contentType = scimAccept
+
+	contentType := "application/json"
+	if acceptHeader == scimAccept {
+		contentType = scimAccept
+	}
+
+	// Retry loop with exponential backoff
+	deadline := time.Now().Add(maxRetryTimeout)
+	attempt := 0
+	backoff := initialBackoff
+
+	for {
+		// Create fresh request for each attempt
+		var bodyReader *bytes.Reader
+		if bodyBytes != nil {
+			bodyReader = bytes.NewReader(bodyBytes)
+		} else {
+			bodyReader = bytes.NewReader(nil)
 		}
-		req.Header.Set("Content-Type", contentType)
-	}
 
-	if githubDebugEnabled() {
-		tflog.Debug(ctx, "github enterprise api request", map[string]interface{}{
-			"method":  req.Method,
-			"url":     req.URL.String(),
-			"headers": redactHeaders(req.Header),
-			"body":    string(bodyBytes),
-		})
-	}
+		req, err := http.NewRequestWithContext(ctx, method, endpoint, bodyReader)
+		if err != nil {
+			return nil, err
+		}
 
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
+		req.Header.Set("Accept", acceptHeader)
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+		req.Header.Set("X-GitHub-Api-Version", c.APIVersion)
+		req.Header.Set("User-Agent", c.UserAgent)
+		if payload != nil {
+			req.Header.Set("Content-Type", contentType)
+		}
+
 		if githubDebugEnabled() {
-			tflog.Debug(ctx, "github enterprise api request error", map[string]interface{}{
-				"method": req.Method,
-				"url":    req.URL.String(),
-				"error":  err.Error(),
+			tflog.Debug(ctx, "github enterprise api request", map[string]interface{}{
+				"method":  req.Method,
+				"url":     req.URL.String(),
+				"headers": redactHeaders(req.Header),
+				"body":    string(bodyBytes),
+				"attempt": attempt + 1,
 			})
 		}
-		return nil, err
+
+		resp, err := c.HTTPClient.Do(req)
+		if err != nil {
+			if githubDebugEnabled() {
+				tflog.Debug(ctx, "github enterprise api request error", map[string]interface{}{
+					"method": req.Method,
+					"url":    req.URL.String(),
+					"error":  err.Error(),
+				})
+			}
+			return nil, err
+		}
+
+		if githubDebugEnabled() {
+			respBody, _ := utils.ReadAndRestoreResponseBody(resp)
+			tflog.Debug(ctx, "github enterprise api response", map[string]interface{}{
+				"status":  resp.StatusCode,
+				"headers": redactHeaders(resp.Header),
+				"body":    string(respBody),
+			})
+		}
+
+		// Check if we should retry
+		if !shouldRetryStatus(resp.StatusCode) {
+			return resp, nil
+		}
+
+		// Check if we've exceeded the deadline
+		if time.Now().After(deadline) {
+			log.Printf("pingoneprovisioning: github retry timeout exceeded after %d attempts for %s %s",
+				attempt+1, method, endpoint)
+			return resp, nil
+		}
+
+		// Calculate sleep duration
+		sleepDuration := calculateRetryBackoff(resp, backoff)
+
+		// Don't sleep longer than the remaining time
+		remaining := time.Until(deadline)
+		if sleepDuration > remaining {
+			sleepDuration = remaining
+		}
+
+		// Drain and close the response body before retrying
+		if resp.Body != nil {
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+		}
+
+		log.Printf("pingoneprovisioning: github received %d for %s %s, retrying in %s (attempt %d)",
+			resp.StatusCode, method, endpoint, sleepDuration.Round(time.Millisecond), attempt+1)
+
+		// Sleep before retry
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(sleepDuration):
+		}
+
+		// Increase backoff for next iteration
+		backoff = nextRetryBackoff(backoff)
+		attempt++
+	}
+}
+
+// shouldRetryStatus determines if the HTTP status code indicates a retryable error.
+func shouldRetryStatus(statusCode int) bool {
+	switch statusCode {
+	case http.StatusTooManyRequests, // 429
+		http.StatusServiceUnavailable,  // 503
+		http.StatusGatewayTimeout,      // 504
+		http.StatusBadGateway:          // 502
+		return true
+	default:
+		return false
+	}
+}
+
+// calculateRetryBackoff determines how long to wait before the next retry.
+func calculateRetryBackoff(resp *http.Response, currentBackoff time.Duration) time.Duration {
+	// Check for Retry-After header
+	if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
+		// Try parsing as seconds first
+		if seconds, err := strconv.ParseInt(retryAfter, 10, 64); err == nil {
+			duration := time.Duration(seconds) * time.Second
+			if duration > maxBackoff {
+				duration = maxBackoff
+			}
+			return duration
+		}
+
+		// Try parsing as HTTP date
+		if retryTime, err := http.ParseTime(retryAfter); err == nil {
+			duration := time.Until(retryTime)
+			if duration < 0 {
+				duration = initialBackoff
+			}
+			if duration > maxBackoff {
+				duration = maxBackoff
+			}
+			return duration
+		}
 	}
 
-	if githubDebugEnabled() {
-		respBody, _ := utils.ReadAndRestoreResponseBody(resp)
-		tflog.Debug(ctx, "github enterprise api response", map[string]interface{}{
-			"status":  resp.StatusCode,
-			"headers": redactHeaders(resp.Header),
-			"body":    string(respBody),
-		})
-	}
+	// Use exponential backoff with jitter
+	jitter := time.Duration(rand.Float64() * 0.25 * float64(currentBackoff))
+	return currentBackoff + jitter
+}
 
-	return resp, nil
+// nextRetryBackoff calculates the next backoff duration using exponential growth.
+func nextRetryBackoff(current time.Duration) time.Duration {
+	next := time.Duration(float64(current) * backoffFactor)
+	if next > maxBackoff {
+		next = maxBackoff
+	}
+	return next
 }
 
 func (c *GitHubClient) buildURL(path string, query url.Values) (string, error) {

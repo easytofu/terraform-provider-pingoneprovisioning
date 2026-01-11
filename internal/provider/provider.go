@@ -241,6 +241,10 @@ func newManagementClient(ctx context.Context, providerVersion string, clientID s
 		baseRT = &loggingTransport{rt: baseRT}
 	}
 
+	// Wrap with retry transport for 429/5xx handling with exponential backoff
+	// Retries for up to 5 minutes with exponential backoff starting at 1 second
+	baseRT = newRetryTransport(baseRT)
+
 	// Do not use the provider Configure() request context for the token source.
 	// That context is canceled after Configure returns, which would make all
 	// subsequent token refreshes fail with `context canceled`.
